@@ -7,78 +7,60 @@ const random = (low, high) => {
 
 const elementData = (element) => {
   const rect = element.getBoundingClientRect()
-  const x = rect.left + rect.width / 2 + window.scrollX
-  const y = rect.top + rect.height / 2 + window.scrollY
-  const moveX = centerX - x
-  const moveY = centerY - y
-  const increment = random(0.002, 0.01)
-  const delay = random(0, 300)
+  const x = rect.left + window.scrollX
+  const y = rect.top + window.scrollY
+  const pageHeight = document.body.scrollHeight
+  const maxScale = 2
   return {
     target: element,
-    moveX: moveX,
-    moveY: moveY,
-    increment: increment,
-    progress: 0,
-    delay: delay,
-    opacity: 1,
-    scale: 1,
+    x: x,
+    y: centerY - rect.height / 2,
+    z: Math.floor(pageHeight - y),
+    width: rect.width,
+    height: rect.height,
+    increment: 0.1,
+    maxScale: maxScale,
+    scale: ((pageHeight - y) / pageHeight) * maxScale,
   }
 }
 
-const findEndChildren = () => {
-  const elementsNodes = document.body.querySelectorAll("*")
+const locateElements = () => {
+  const elementsNodes = document.querySelectorAll("*")
   const elements = Array.from(elementsNodes)
-  let result = []
-  for (let i = elements.length - 1; i >= 0; i--) {
-    const element = elements[i]
-    const children = element.querySelectorAll(":scope > *")
-    if (Array.from(children).length === 0) {
-      result.push(elementData(element))
-    }
-    //if (result.length === 10000) break
-  }
+  const result = elements.map((element) => {
+    return elementData(element)
+  })
   return result
 }
 
-let endChildren = findEndChildren()
-let watchList = []
+const elements = locateElements()
 
-const animate = () => {
-  for (let i = endChildren.length - 1; i >= 0; i--) {
-    const element = endChildren[i]
-    const { target, moveX, moveY, increment, progress, opacity, delay, scale } =
-      element
-    element.delay = delay - 1
-    if (delay > 0) continue
+elements.forEach((element) => {
+  const { x, y, z, width, height, scale, target } = element
+  target.style.position = "fixed"
+  target.style.left = x
+  target.style.top = y
+  target.style.zIndex = z
+  target.style.width = width
+  target.style.height = height
+  target.style.scale = scale
+})
 
-    element.progress = progress + increment
-    element.opacity = opacity - increment
-    element.scale = scale - increment
-    target.style.transform = `translateX(${moveX * progress}px) translateY(${
-      moveY * progress
-    }px)`
-    target.style.opacity = opacity
-    target.style.scale = scale
-
-    if (element.progress >= 1) {
-      endChildren.splice(i, 1)
-      const parent = target.parentNode
-      if (!parent) break
-      parent.removeChild(target)
-      if (watchList.find((item) => item === parent)) break
-      watchList.push(parent)
+window.addEventListener("wheel", (event) => {
+  const dir = event.deltaY < 0 ? 1 : -1
+  console.log(dir)
+  elements.forEach((element) => {
+    const { maxScale, scale, increment, target } = element
+    target.style.scale = scale + dir * increment
+    if (scale > maxScale) {
+      target.style.opacity = 0
+      target.style.pointerEvents = "none"
+    } else if (scale < 1) {
+      target.style.opacity = 0
+      target.style.pointerEvents = "none"
+    } else {
+      target.style.opacity = 1
+      target.style.pointerEvents = "auto"
     }
-  }
-
-  //if (endChildren.length === 0) endChildren = findEndChildren()
-
-  for (let i = watchList.length - 1; i >= 0; i--) {
-    const element = watchList[i]
-    if (element.querySelectorAll(":scope > *").length === 0) {
-      watchList.splice(i, 1)
-      endChildren.push(elementData(element))
-    }
-  }
-  window.requestAnimationFrame(animate)
-}
-animate()
+  })
+})
